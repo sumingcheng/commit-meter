@@ -5,6 +5,9 @@ import sqlite3
 from journal.logger_setup import logger
 from typing import List, Dict, Any
 from urllib.parse import quote
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.dates import DateFormatter
 
 from app.config.main import Config
 from app.gitlab.constant import REPOSITORY_URLS
@@ -72,13 +75,8 @@ class OvertimeAnalyzer:
     def fetch_project_info(self, repo_url: str) -> Dict[str, Any]:
         """从 GitLab API 获取仓库的项目 ID 和名称。"""
         try:
-            # 提取仓库的路径，例如 'vnet/datainfra/aiproject/applications/fastgpt-group/fastgpt48'
-            # 如果仓库 URL 以 '/' 开头，移除它
             project_path = repo_url.lstrip('/')
-
-            # 对路径进行 URL 编码，包括斜杠
-            encoded_path = quote(project_path, safe='')  # 不保留任何特殊字符
-
+            encoded_path = quote(project_path, safe='')
             url = f"{self.base_url}/projects/{encoded_path}"
             response = self.session.get(url)
             if response.status_code == 200:
@@ -140,27 +138,24 @@ class OvertimeAnalyzer:
                 break
             commits.extend(page_commits)
             if len(page_commits) < per_page:
-                break  # 没有更多页面
+                break
             page += 1
         return commits
 
     def parse_commit_time(self, commit_created_at: str) -> datetime.datetime:
         """解析提交的创建时间字符串并转换为本地时区的 datetime 对象。"""
         try:
-            # 尝试解析带微秒和时区偏移的日期字符串
             commit_time_utc = datetime.datetime.strptime(
                 commit_created_at, '%Y-%m-%dT%H:%M:%S.%f%z'
             )
         except ValueError:
             try:
-                # 尝试解析不带微秒但带时区偏移的日期字符串
                 commit_time_utc = datetime.datetime.strptime(
                     commit_created_at, '%Y-%m-%dT%H:%M:%S%z'
                 )
             except ValueError:
                 logger.error(f"无法解析日期字符串: {commit_created_at}")
-                return None  # 跳过无法解析的日期
-        # 将时间转换为本地时区
+                return None
         return commit_time_utc.astimezone(self.local_tz)
 
     def analyze_overtime(self):
@@ -191,10 +186,9 @@ class OvertimeAnalyzer:
                 overtime_records = {}
 
                 for commit in commits:
-                    # 解析提交时间
                     commit_time_local = self.parse_commit_time(commit['created_at'])
                     if not commit_time_local:
-                        continue  # 跳过无法解析的日期
+                        continue
 
                     if commit['author_email'] != self.author_email:
                         continue
@@ -202,36 +196,26 @@ class OvertimeAnalyzer:
                     weekday = commit_time_local.weekday()
                     hour = commit_time_local.hour
 
-                    # 检查提交是否在加班时间
                     if weekday < 5:
-                        # 工作日
                         if hour >= 18:
                             date_key = commit_time_local.date()
                             overtime_records.setdefault(date_key, []).append(commit)
                     else:
-                        # 周末
                         date_key = commit_time_local.date()
                         overtime_records.setdefault(date_key, []).append(commit)
 
-                # 记录加班信息
                 for date, commits_on_date in overtime_records.items():
-                    # 对当天的提交按照时间排序
                     commits_on_date.sort(key=lambda x: self.parse_commit_time(x['created_at']))
 
                     first_commit_time_local = self.parse_commit_time(commits_on_date[0]['created_at'])
                     last_commit_time_local = self.parse_commit_time(commits_on_date[-1]['created_at'])
 
                     if not first_commit_time_local or not last_commit_time_local:
-                        continue  # 跳过无法解析的日期
+                        continue
 
-                    # 计算加班时长
                     hours_worked = (last_commit_time_local - first_commit_time_local).total_seconds() / 3600
-
-                    # 获取最后一次提交的信息
                     last_commit_message = commits_on_date[-1].get('title', '')
                     last_commit_time_local_str = last_commit_time_local.strftime('%H:%M:%S')
-
-                    # 获取星期几
                     weekday_str = self.get_weekday_str(date.weekday())
 
                     try:
@@ -256,14 +240,40 @@ class OvertimeAnalyzer:
 
         logger.info("全部仓库处理完成，处理成功。")
 
-    def get_weekday_str(self, weekday_int: int) -> str:
-        """根据星期的整数表示返回中文字符串表示。"""
-        weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-        return weekdays[weekday_int]
+    def create_overtime_chart(self):
+        """生成加班情况图表并保存为图片。"""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT date, SUM(hours_worked) FROM Overtime GROUP BY date")
+        data = cursor.fetchall()
+
+        if not data:
+            logger.warning("没有可用的加班数据，无法生成图表。")
+            return
+
+        df = pd.DataFrame(data, columns=['Date', 'Hours_Worked'])
+        df['Date'] = pd.to_datetime(df['Date'])
+        df.set_index('Date', inplace=True)
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(df.index, df['Hours_Worked'], marker='o', linestyle='-')
+        plt.title('加班情况一览')
+        plt.xlabel('日期')
+        plt.ylabel('加班小时数')
+        plt.xticks(rotation=45)
+        plt.gca().xaxis.set_major_formatter(DateFormatter('%Y-%m-%d'))
+        plt.grid()
+        plt.tight_layout()
+        plt.savefig('overtime_chart.png')  # 保存图表
+        plt.show()  # 显示图表
 
     def close(self):
+        """关闭数据库连接。"""
         self.conn.close()
-        self.session.close()
+
+    @staticmethod
+    def get_weekday_str(weekday: int) -> str:
+        """将星期几数字转换为字符串。"""
+        return ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][weekday]
 
 
 if __name__ == "__main__":
@@ -278,5 +288,6 @@ if __name__ == "__main__":
     )
     try:
         analyzer.analyze_overtime()
+        analyzer.create_overtime_chart()  # 生成加班图表
     finally:
         analyzer.close()
