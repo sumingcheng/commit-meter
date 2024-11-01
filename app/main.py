@@ -13,11 +13,11 @@ from app.journal.logger_setup import logger
 
 
 class OvertimeAnalyzer:
-    def __init__(self, access_token: str, base_url: str, database_path: str, local_tz: pytz.timezone,
+    def __init__(self, access_token: str, base_url: str, local_tz: pytz.timezone,
                  repository_urls: List[str], author_email: str, year: int):
         self.access_token = access_token
         self.base_url = base_url
-        self.database_path = database_path
+        self.database_path = Config.DATABASE_PATH
         self.local_tz = local_tz
         self.repository_urls = repository_urls
         self.author_email = author_email
@@ -229,11 +229,10 @@ class OvertimeAnalyzer:
         self.conn.close()
 
 
-def analyze_and_plot(access_token, base_url, database_path, author_email, year):
+def analyze_and_plot(access_token, base_url, author_email, year):
     analyzer = OvertimeAnalyzer(
         access_token=access_token,
         base_url=base_url,
-        database_path=database_path,
         local_tz=pytz.timezone('Asia/Shanghai'),
         repository_urls=REPOSITORY_URLS,
         author_email=author_email,
@@ -251,23 +250,24 @@ with gr.Blocks() as demo:
     gr.Markdown("# 加班分析工具")
 
     with gr.Row():
-        access_token = gr.Textbox(label="Access Token", placeholder="请输入访问令牌", elem_id="token")
-        base_url = gr.Textbox(label="Base URL", placeholder="请输入 GitLab 的基础 URL", elem_id="url")
-        database_path = gr.Textbox(label="Database Path", value="overtime.db", placeholder="请输入数据库路径", elem_id="db_path")
-        author_email = gr.Textbox(label="Author Email", placeholder="请输入作者邮箱", elem_id="email")
-        year = gr.Number(label="Year", value=datetime.datetime.now().year, elem_id="year")
+        access_token = gr.Textbox(label="GitLab Token", placeholder="请输入访问令牌", elem_id="token")
+        base_url = gr.Textbox(label="Git Base URL", placeholder="请输入 GitLab 的基础 URL", elem_id="url")
+        author_email = gr.Textbox(label="邮箱", placeholder="请输入作者邮箱", elem_id="email")
+        year = gr.Number(label="年份", value=datetime.datetime.now().year, elem_id="year")
+
+    with gr.Row():
         submit_btn = gr.Button("分析加班数据")
 
     chart_output = gr.Image(label="加班情况图")
     excel_output = gr.File(label="下载数据 Excel")
 
 
-    def on_submit(access_token, base_url, database_path, author_email, year):
-        chart_path, excel_path = analyze_and_plot(access_token, base_url, database_path, author_email, year)
+    def on_submit(access_token, base_url, author_email, year):
+        chart_path, excel_path = analyze_and_plot(access_token, base_url, author_email, year)
         return chart_path, excel_path
 
 
-    submit_btn.click(on_submit, inputs=[access_token, base_url, database_path, author_email, year],
+    submit_btn.click(on_submit, inputs=[access_token, base_url, author_email, year],
                      outputs=[chart_output, excel_output])
 
 # 启动 Gradio 应用
