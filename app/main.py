@@ -180,8 +180,8 @@ class OvertimeAnalyzer:
 
                     cursor.execute(''' 
                         INSERT INTO Overtime (
-                            repository_id, repository_name, branch, date, last_commit_time, hours_worked, last_commit_message, commit_hash
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            repository_id, repository_name, branch, date, last_commit_time, hours_worked, last_commit_message, commit_hash, author_email
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         project_id,
                         repository_name,
@@ -190,8 +190,10 @@ class OvertimeAnalyzer:
                         last_commit_time_local.strftime('%H:%M:%S'),
                         hours_worked,
                         commits_on_date[-1].get('title', ''),
-                        last_commit_hash  # 添加 commit_hash
+                        last_commit_hash,  # 使用 'id' 字段作为 commit_hash
+                        self.author_email  # 这里使用的是类实例的 author_email
                     ))
+
                     self.conn.commit()
 
         logger.info("加班分析完成。")
