@@ -167,10 +167,19 @@ class OvertimeAnalyzer:
                     last_commit_time_local = self.parse_commit_time(commits_on_date[-1]['created_at'])
                     hours_worked = (last_commit_time_local - first_commit_time_local).total_seconds() / 3600
 
-                    # 插入时确保包含 commit_hash
                     last_commit_hash = commits_on_date[-1].get('id', '')  # 使用 'id' 字段作为 commit_hash
+
+                    # 检查数据库中是否已经存在相同的 commit_hash
+                    cursor.execute('''
+                        SELECT COUNT(*) FROM Overtime 
+                        WHERE commit_hash = ?
+                    ''', (last_commit_hash,))
+                    if cursor.fetchone()[0] > 0:
+                        logger.warning(f"跳过重复记录: {last_commit_hash} 已存在于数据库")
+                        continue  # 跳过重复记录
+
                     cursor.execute(''' 
-                        INSERT OR REPLACE INTO Overtime (
+                        INSERT INTO Overtime (
                             repository_id, repository_name, branch, date, last_commit_time, hours_worked, last_commit_message, commit_hash
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
@@ -246,7 +255,7 @@ def analyze_and_plot(access_token, base_url, author_email, year):
 
 
 # 创建 Gradio 界面
-with gr.Blocks() as demo:
+with gr.Blocks() as gradio:
     gr.Markdown("# 加班分析工具")
 
     with gr.Row():
@@ -271,4 +280,4 @@ with gr.Blocks() as demo:
                      outputs=[chart_output, excel_output])
 
 # 启动 Gradio 应用
-demo.launch()
+gradio.launch()
