@@ -8,7 +8,7 @@ class Config:
     ACCESS_TOKEN = os.getenv('ACCESS_TOKEN')  # 请确保在环境变量中设置
     BASE_URL = os.getenv('BASE_URL', 'https://gitlabcode.com/api/v4')
     LOCAL_TZ = pytz.timezone(os.getenv('LOCAL_TZ', 'Asia/Shanghai'))
-    DATABASE_PATH = os.getenv('DATABASE_PATH', 'overtime_data.db')
+    DATABASE_PATH = os.getenv('DATABASE_PATH', 'overtime_analysis.db')
     AUTHOR_EMAIL = os.getenv('AUTHOR_EMAIL')  # 请确保在环境变量中设置
     ANALYSIS_YEAR = int(os.getenv('ANALYSIS_YEAR', '2024'))
 
