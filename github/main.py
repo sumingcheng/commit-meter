@@ -1,4 +1,3 @@
-# 获取你的github的仓库信息
 import requests
 
 # 你的 GitHub 用户名
@@ -30,12 +29,17 @@ while True:
     # 发起 GET 请求
     response = requests.get(url, headers=headers, params={'per_page': per_page, 'page': page})
 
+    # 输出响应头信息，帮助调试
+    print(f"Page: {page}, Status Code: {response.status_code}")
+    print(f"Remaining Requests: {response.headers.get('X-RateLimit-Remaining')}")
+
     # 如果请求成功
     if response.status_code == 200:
         data = response.json()
 
         # 如果返回的数据为空，说明已获取所有仓库
         if not data:
+            print(f"没有更多的数据，已获取所有仓库。")
             break
 
         # 将当前页面的仓库数据添加到列表
@@ -48,6 +52,7 @@ while True:
         break
 
 # 输出获取到的仓库信息
+print(f"共获取到 {len(repositories)} 个仓库：")
 for repo in repositories:
     print(f"仓库名称: {repo['name']}")
     print(f"仓库地址: {repo['html_url']}")
