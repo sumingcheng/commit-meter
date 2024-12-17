@@ -8,6 +8,8 @@ from urllib.parse import quote
 from typing import List, Dict, Any
 from app.config.main import Config
 from app.journal.logger_setup import logger
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 
 class OvertimeAnalyzer:
@@ -18,7 +20,8 @@ class OvertimeAnalyzer:
         self.database_path = Config.DATABASE_PATH
         self.local_tz = local_tz
         self.repository_urls = repository_urls
-        self.author_email = author_email
+        self.author_emails = [email.strip()
+                              for email in author_email.split(',')]
         self.year = year
         self.conn = self.setup_database()
         self.session = self.create_session()
@@ -27,12 +30,17 @@ class OvertimeAnalyzer:
     def create_session(self) -> requests.Session:
         logger.info("创建会话...")
         session = requests.Session()
+        retry = Retry(total=3, backoff_factor=0.1)
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
         session.headers.update({'PRIVATE-TOKEN': self.access_token})
         return session
 
     def setup_database(self) -> sqlite3.Connection:
         logger.info("设置数据库...")
-        conn = sqlite3.connect(self.database_path)
+        conn = sqlite3.connect(self.database_path, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS Overtime (
@@ -66,7 +74,8 @@ class OvertimeAnalyzer:
         try:
             logger.debug(f"从 {repo_url} 获取项目信息...")
             encoded_path = quote(repo_url.lstrip('/'), safe='')
-            response = self.session.get(f"{self.base_url}/projects/{encoded_path}")
+            response = self.session.get(
+                f"{self.base_url}/projects/{encoded_path}")
             if response.status_code == 200:
                 project_data = response.json()
                 return {
@@ -123,15 +132,23 @@ class OvertimeAnalyzer:
 
     def parse_commit_time(self, commit_created_at: str) -> datetime.datetime:
         try:
-            commit_time_utc = datetime.datetime.strptime(commit_created_at, '%Y-%m-%dT%H:%M:%S.%f%z')
+            commit_time_utc = datetime.datetime.strptime(
+                commit_created_at, '%Y-%m-%dT%H:%M:%S.%f%z')
         except ValueError:
-            commit_time_utc = datetime.datetime.strptime(commit_created_at, '%Y-%m-%dT%H:%M:%S%z')
+            commit_time_utc = datetime.datetime.strptime(
+                commit_created_at, '%Y-%m-%dT%H:%M:%S%z')
         return commit_time_utc.astimezone(self.local_tz)
 
     def analyze_overtime(self):
         start_date = datetime.datetime(self.year, 1, 1, tzinfo=pytz.utc)
-        end_date = datetime.datetime(self.year, 12, 31, 23, 59, 59, tzinfo=pytz.utc)
+        end_date = datetime.datetime(
+            self.year, 12, 31, 23, 59, 59, tzinfo=pytz.utc)
         cursor = self.conn.cursor()
+
+        # 定义工作时间常量
+        WORK_START_HOUR = 9  # 上班时间 9:00
+        WORK_END_HOUR = 18   # 下班时间 18:00
+        OVERTIME_END_HOUR = 23  # 修改为 23，表示 23:59:59
 
         for repo in self.repositories:
             project_id = repo['id']
@@ -141,29 +158,75 @@ class OvertimeAnalyzer:
                 continue
 
             for branch in branches:
-                commits = self.fetch_commits(str(project_id), branch, start_date, end_date)
+                commits = self.fetch_commits(
+                    str(project_id), branch, start_date, end_date)
                 overtime_records = {}
 
                 for commit in commits:
-                    commit_time_local = self.parse_commit_time(commit['created_at'])
-                    if commit['author_email'] != self.author_email:
+                    commit_time_local = self.parse_commit_time(
+                        commit['created_at'])
+                    if commit['author_email'] not in self.author_emails:
                         continue
 
                     weekday = commit_time_local.weekday()
                     hour = commit_time_local.hour
+                    date_key = commit_time_local.date()
 
-                    if weekday < 5 and hour >= 18:
-                        date_key = commit_time_local.date()
-                        overtime_records.setdefault(date_key, []).append(commit)
-                    elif weekday >= 5:
-                        date_key = commit_time_local.date()
-                        overtime_records.setdefault(date_key, []).append(commit)
+                    # 区分周末和工作日
+                    if weekday >= 5:  # 周末
+                        # 周末从早上9点开始计算，不管提交时间是什么时候
+                        start_time = datetime.datetime.combine(
+                            date_key,
+                            datetime.time(WORK_START_HOUR, 0),
+                            tzinfo=self.local_tz
+                        )
+                        overtime_records.setdefault(date_key, {
+                            'commits': [],
+                            'start_time': start_time,
+                            'is_weekend': True  # 标记是否为周末
+                        })['commits'].append(commit)
+                    else:  # 工作日
+                        if hour >= WORK_END_HOUR and hour < OVERTIME_END_HOUR:
+                            start_time = datetime.datetime.combine(
+                                date_key,
+                                datetime.time(WORK_END_HOUR, 0),
+                                tzinfo=self.local_tz
+                            )
+                            overtime_records.setdefault(date_key, {
+                                'commits': [],
+                                'start_time': start_time,
+                                'is_weekend': False
+                            })['commits'].append(commit)
 
-                for date, commits_on_date in overtime_records.items():
-                    commits_on_date.sort(key=lambda x: self.parse_commit_time(x['created_at']))
-                    first_commit_time_local = self.parse_commit_time(commits_on_date[0]['created_at'])
-                    last_commit_time_local = self.parse_commit_time(commits_on_date[-1]['created_at'])
-                    hours_worked = (last_commit_time_local - first_commit_time_local).total_seconds() / 3600
+                for date, record in overtime_records.items():
+                    commits_on_date = record['commits']
+                    if not commits_on_date:
+                        continue
+
+                    commits_on_date.sort(
+                        key=lambda x: self.parse_commit_time(x['created_at']))
+                    first_commit_time = self.parse_commit_time(
+                        commits_on_date[0]['created_at'])
+                    last_commit_time = self.parse_commit_time(
+                        commits_on_date[-1]['created_at'])
+
+                    # 确保最后提交时间不超过当天23:59:59
+                    end_time = datetime.datetime.combine(
+                        date,
+                        datetime.time(OVERTIME_END_HOUR, 59, 59),
+                        tzinfo=self.local_tz
+                    )
+                    last_commit_time = min(last_commit_time, end_time)
+
+                    if record['is_weekend']:  # 周末
+                        # 周末一律从9点开始算，如果第一次提交在9点之前，仍从9点算起
+                        hours_worked = (last_commit_time - record['start_time']).total_seconds() / 3600
+                    else:  # 工作日
+                        overtime_duration = (last_commit_time - record['start_time']).total_seconds() / 3600
+                        if overtime_duration < 1:
+                            logger.info(f"工作日加班时间不足1小时，跳过记录: {date}")
+                            continue
+                        hours_worked = overtime_duration
 
                     last_commit_hash = commits_on_date[-1].get('id', '')
 
@@ -177,18 +240,20 @@ class OvertimeAnalyzer:
 
                     cursor.execute(''' 
                         INSERT INTO Overtime (
-                            repository_id, repository_name, branch, date, last_commit_time, hours_worked, last_commit_message, commit_hash, author_email
+                            repository_id, repository_name, branch, date, 
+                            last_commit_time, hours_worked, last_commit_message, 
+                            commit_hash, author_email
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         project_id,
                         repository_name,
                         branch,
                         date.isoformat(),
-                        last_commit_time_local.strftime('%H:%M:%S'),
-                        hours_worked,
+                        last_commit_time.strftime('%H:%M:%S'),
+                        round(hours_worked, 2),  # 保留两位小数
                         commits_on_date[-1].get('title', ''),
                         last_commit_hash,
-                        self.author_email
+                        self.author_emails[0]
                     ))
 
                     self.conn.commit()
@@ -198,7 +263,8 @@ class OvertimeAnalyzer:
     def create_overtime_chart(self):
         logger.info("生成加班图表...")
         cursor = self.conn.cursor()
-        cursor.execute("SELECT date, SUM(hours_worked) FROM Overtime GROUP BY date")
+        cursor.execute(
+            "SELECT date, SUM(hours_worked) FROM Overtime GROUP BY date")
         data = cursor.fetchall()
         if not data:
             logger.warning("没有可用数据生成图表。")
