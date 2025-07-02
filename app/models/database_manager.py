@@ -30,7 +30,7 @@ class DatabaseManager:
                 last_commit_message TEXT,
                 author_email TEXT,
                 commit_hash TEXT,
-                PRIMARY KEY (repository_id, branch, date)
+                PRIMARY KEY (repository_id, branch, date, commit_hash)
             )
         """
         )

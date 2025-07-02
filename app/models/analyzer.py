@@ -108,6 +108,7 @@ class OvertimeAnalyzer:
                         commits_on_date,
                         hours_worked,
                         self.author_emails[0],
+                        commit_hash_field="id"  # GitLab使用id字段
                     )
 
                     # 保存到数据库

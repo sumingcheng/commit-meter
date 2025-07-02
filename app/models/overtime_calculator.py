@@ -123,7 +123,7 @@ class OvertimeCalculator:
 
         return round(max(hours_worked, 0), 2)
 
-    def create_overtime_record(
+        def create_overtime_record(
         self,
         project_id: str,
         repository_name: str,
@@ -132,11 +132,12 @@ class OvertimeCalculator:
         commits_on_date: List[Dict[str, Any]],
         hours_worked: float,
         author_email: str,
+        commit_hash_field: str = "id"  # 添加参数指定hash字段名
     ) -> Dict[str, Any]:
         """创建加班记录字典"""
         last_commit = commits_on_date[-1]
         last_commit_time = self.parse_commit_time(last_commit["created_at"])
-
+        
         return {
             "repository_id": project_id,
             "repository_name": repository_name,
@@ -145,6 +146,6 @@ class OvertimeCalculator:
             "last_commit_time": last_commit_time.strftime("%H:%M:%S"),
             "hours_worked": hours_worked,
             "last_commit_message": last_commit.get("title", ""),
-            "commit_hash": last_commit.get("id", ""),
+            "commit_hash": last_commit.get(commit_hash_field, ""),
             "author_email": author_email,
         }

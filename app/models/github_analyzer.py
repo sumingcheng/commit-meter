@@ -95,10 +95,8 @@ class GitHubOvertimeAnalyzer:
                         commits_on_date,
                         hours_worked,
                         self.author_emails[0],
+                        commit_hash_field="sha"  # GitHub使用sha字段
                     )
-                    
-                    # 更新记录中的commit_hash字段
-                    overtime_record["commit_hash"] = last_commit_hash
                     
                     # 保存到数据库
                     self.db_manager.insert_overtime_record(overtime_record)
