@@ -1,6 +1,7 @@
 # commit-meter
 
 GitLab代码提交记录的加班统计分析工具 - 智能识别加班时间，生成可视化报告。
+![image](https://github.com/user-attachments/assets/99536159-c359-42dc-9121-4a286110cc50)
 
 ## 功能特点
 
