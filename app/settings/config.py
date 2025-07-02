@@ -5,7 +5,6 @@ from matplotlib import font_manager
 
 
 class Config:
-    # 默认值配置
     DEFAULT_BASE_URL = 'https://gitlabcode.com/api/v4'
     DEFAULT_LOCAL_TZ = 'Asia/Shanghai'
     DEFAULT_DATABASE_PATH = 'overtime_analysis.db'
@@ -39,48 +38,18 @@ class Config:
         except (ValueError, TypeError):
             return cls.DEFAULT_ANALYSIS_YEAR
 
-    # 向后兼容的属性
-    @property
-    def ACCESS_TOKEN(self):
-        return self.get_access_token()
-    
-    @property 
-    def BASE_URL(self):
-        return self.get_base_url()
-    
-    @property
-    def LOCAL_TZ(self):
-        return self.get_local_tz()
-    
-    @property
-    def DATABASE_PATH(self):
-        return self.get_database_path()
-    
-    @property
-    def AUTHOR_EMAIL(self):
-        return self.get_author_email()
-    
-    @property
-    def ANALYSIS_YEAR(self):
-        return self.get_analysis_year()
-
     @classmethod
     def setup_matplotlib_font(cls):
-        """设置matplotlib中文字体"""
         try:
-            # Windows字体路径
-            font_path = 'C:\\Windows\\Fonts\\msyh.ttc'  # Microsoft YaHei
+            font_path = 'C:\\Windows\\Fonts\\msyh.ttc'
             if os.path.exists(font_path):
                 font_prop = font_manager.FontProperties(fname=font_path)
                 plt.rcParams['font.family'] = font_prop.get_name()
             else:
-                # 如果没有找到微软雅黑，尝试其他中文字体
                 plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
                 plt.rcParams['axes.unicode_minus'] = False
         except Exception:
-            # 如果字体设置失败，使用默认字体
             plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
             plt.rcParams['axes.unicode_minus'] = False
 
-# 初始化字体设置
 Config.setup_matplotlib_font()

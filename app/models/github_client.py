@@ -16,7 +16,7 @@ class GitHubClient:
     
     def _create_session(self) -> requests.Session:
         """创建配置好的 HTTP 会话"""
-        logger.info("创建 GitHub API 会话...")
+        logger.info("创建GitHub API会话...")
         session = requests.Session()
         retry = Retry(total=3, backoff_factor=0.1)
         adapter = HTTPAdapter(max_retries=retry)
@@ -30,7 +30,7 @@ class GitHubClient:
     
     def fetch_user_repos(self) -> List[Dict[str, Any]]:
         """获取用户的所有仓库"""
-        logger.info("获取用户GitHub仓库列表...")
+        logger.info("获取GitHub仓库列表...")
         repos = []
         page = 1
         per_page = 100
@@ -45,7 +45,6 @@ class GitHubClient:
                 }
                 
                 response = self.session.get(f"{self.base_url}/user/repos", params=params)
-                logger.debug(f"获取第 {page} 页仓库，状态码: {response.status_code}")
                 
                 if response.status_code != 200:
                     logger.warning(f"获取仓库列表失败: {response.status_code}")
@@ -57,7 +56,7 @@ class GitHubClient:
                     break
                     
                 repos.extend(page_repos)
-                logger.info(f"第 {page} 页获取到 {len(page_repos)} 个仓库")
+                logger.info(f"第{page}页获取{len(page_repos)}个仓库")
                 
                 if len(page_repos) < per_page:
                     break
@@ -65,10 +64,10 @@ class GitHubClient:
                 page += 1
                 
             except Exception as e:
-                logger.error(f"获取仓库列表时出错: {e}")
+                logger.error(f"获取仓库列表出错: {e}")
                 break
         
-        logger.info(f"总共获取到 {len(repos)} 个GitHub仓库")
+        logger.info(f"共获取{len(repos)}个仓库")
         return repos
     
     def fetch_branches(self, owner: str, repo: str) -> List[str]:
@@ -82,7 +81,7 @@ class GitHubClient:
             branches = response.json()
             return [branch["name"] for branch in branches]
         except requests.RequestException as e:
-            logger.error(f"获取分支时出错: {e}")
+            logger.error(f"获取分支出错: {e}")
             return []
     
     def fetch_commits(
@@ -119,7 +118,7 @@ class GitHubClient:
                 break
             page += 1
             
-        logger.info(f"获取 {repo}/{branch} 分支的提交数量: {len(commits)}")
+        logger.info(f"获取{repo}/{branch}分支{len(commits)}个提交")
         return commits
     
     def close(self):

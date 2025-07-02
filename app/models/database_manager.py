@@ -9,12 +9,12 @@ class DatabaseManager:
     """数据库管理类，负责所有数据库操作"""
 
     def __init__(self, database_path: str = None):
-        self.database_path = database_path or Config.DATABASE_PATH
+        self.database_path = database_path or Config.get_database_path()
         self.conn = self._setup_database()
 
     def _setup_database(self) -> sqlite3.Connection:
         """设置数据库连接和表结构"""
-        logger.info("设置数据库...")
+        logger.info("初始化数据库...")
         conn = sqlite3.connect(self.database_path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -94,5 +94,5 @@ class DatabaseManager:
     def close(self):
         """关闭数据库连接"""
         if self.conn:
-            logger.info("关闭数据库连接...")
+            logger.info("关闭数据库连接")
             self.conn.close()

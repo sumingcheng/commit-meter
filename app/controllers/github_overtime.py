@@ -26,7 +26,7 @@ def get_github_repos(access_token):
         
         return repo_list
     except Exception as e:
-        logger.error(f"获取GitHub仓库列表出错: {e}")
+        logger.error(f"获取GitHub仓库列表失败: {e}")
         raise
 
 def analyze_github_overtime(access_token, author_email, year, selected_repos, work_start_hour=9, work_end_hour=18):
@@ -46,7 +46,7 @@ def analyze_github_overtime(access_token, author_email, year, selected_repos, wo
         excel_path = analyzer.export_to_excel()
         return chart_path, excel_path
     except Exception as e:
-        logger.error(f"GitHub分析过程发生错误: {e}")
+        logger.error(f"GitHub分析失败: {e}")
         raise
     finally:
         if 'analyzer' in locals():

@@ -16,7 +16,7 @@ class ReportGenerator:
 
         df = self.db_manager.get_daily_overtime_summary()
         if df.empty:
-            logger.warning("没有可用数据生成图表。")
+            logger.warning("无数据生成图表")
             return None
 
         # 数据处理
@@ -44,12 +44,12 @@ class ReportGenerator:
         plt.savefig(output_path, dpi=300, bbox_inches="tight")
         plt.close()
 
-        logger.info(f"加班图表已保存到: {output_path}")
+        logger.info(f"图表已保存: {output_path}")
         return output_path
 
     def export_to_excel(self, output_path: str = "overtime_data.xlsx") -> str:
         """导出数据为Excel文件"""
-        logger.info("导出数据为 Excel...")
+        logger.info("导出Excel...")
 
         # 获取所有数据
         df = self.db_manager.get_overtime_data()
@@ -64,7 +64,7 @@ class ReportGenerator:
                 summary_df = self._create_summary_stats(df)
                 summary_df.to_excel(writer, sheet_name="统计汇总", index=False)
 
-        logger.info(f"数据已导出到: {output_path}")
+        logger.info(f"已导出: {output_path}")
         return output_path
 
     def _create_summary_stats(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -115,5 +115,5 @@ class ReportGenerator:
             return result
 
         except Exception as e:
-            logger.error(f"创建统计汇总时出错: {e}")
+            logger.error(f"创建统计汇总出错: {e}")
             return pd.DataFrame()

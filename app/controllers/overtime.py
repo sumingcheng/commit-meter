@@ -20,7 +20,7 @@ def analyze_and_plot(access_token, base_url, author_email, year, work_start_hour
         excel_path = analyzer.export_to_excel()
         return chart_path, excel_path
     except Exception as e:
-        logger.error(f"分析过程发生错误: {e}")
+        logger.error(f"分析失败: {e}")
         raise
     finally:
         if 'analyzer' in locals():

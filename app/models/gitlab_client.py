@@ -17,7 +17,7 @@ class GitLabClient:
 
     def _create_session(self) -> requests.Session:
         """创建配置好的 HTTP 会话"""
-        logger.info("创建 GitLab API 会话...")
+        logger.info("创建GitLab API会话...")
         session = requests.Session()
         retry = Retry(total=3, backoff_factor=0.1)
         adapter = HTTPAdapter(max_retries=retry)
@@ -28,7 +28,7 @@ class GitLabClient:
 
     def fetch_user_projects(self) -> List[Dict[str, Any]]:
         """动态获取用户有权限访问的所有项目"""
-        logger.info("动态获取用户项目列表...")
+        logger.info("获取用户项目列表...")
         projects = []
         page = 1
         per_page = 100

@@ -123,7 +123,7 @@ class OvertimeCalculator:
 
         return round(max(hours_worked, 0), 2)
 
-        def create_overtime_record(
+    def create_overtime_record(
         self,
         project_id: str,
         repository_name: str,

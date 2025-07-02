@@ -36,7 +36,7 @@ class OvertimeAnalyzer:
 
     def _get_repositories_info(self) -> List[Dict[str, Any]]:
         """获取用户可访问的仓库信息"""
-        logger.info("获取用户可访问的仓库信息...")
+        logger.info("获取可访问仓库...")
         repositories = []
         user_projects = self.gitlab_client.fetch_user_projects()
 

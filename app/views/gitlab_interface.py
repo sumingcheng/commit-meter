@@ -139,12 +139,10 @@ def create_gitlab_interface():
                 int(work_end_hour)
             )
             
-            final_status = "🎉 GitLab分析完成！图表和Excel文件已生成。"
-            return chart_path, excel_path, final_status
+            return chart_path, excel_path, "🎉 GitLab分析完成！图表和Excel文件已生成。"
             
         except Exception as e:
-            error_msg = f"❌ GitLab分析过程出错: {str(e)}"
-            return None, None, error_msg
+            return None, None, f"❌ GitLab分析过程出错: {str(e)}"
 
     def clear_gitlab_form():
         return "", "", "", datetime.datetime.now().year, 9, 18, None, None, "🔄 配置已清除"

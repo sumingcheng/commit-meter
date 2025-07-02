@@ -153,12 +153,10 @@ def create_github_interface():
                 int(work_end_hour)
             )
             
-            final_status = f"🎉 GitHub分析完成！已分析 {len(selected_repos)} 个仓库。"
-            return chart_path, excel_path, final_status
+            return chart_path, excel_path, f"🎉 GitHub分析完成！已分析 {len(selected_repos)} 个仓库。"
             
         except Exception as e:
-            error_msg = f"❌ GitHub分析过程出错: {str(e)}"
-            return None, None, error_msg
+            return None, None, f"❌ GitHub分析过程出错: {str(e)}"
 
     def clear_github_form():
         return "", "", datetime.datetime.now().year, [], 9, 18, None, None, "🔄 配置已清除"
