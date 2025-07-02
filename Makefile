@@ -50,20 +50,6 @@ reset:
 	-@$(MAKE) build
 	-@cd deploy && docker-compose -f docker-compose-dev.yaml up -d
 
-# 代码质量检查
-lint: sync-dev
-	uv run ruff check .
-
-lint-fix: sync-dev
-	uv run ruff check --fix .
-
-format: sync-dev
-	uv run ruff format .
-
-# 生成requirements.txt（兼容性）
-export-requirements: sync
-	uv export --format requirements-txt --output-file requirements.txt
-
 # 清理
 clean:
 	rm -rf .venv
