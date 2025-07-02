@@ -1,6 +1,6 @@
 import pytz
 import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from app.utils.logger import logger
 from app.models.gitlab_client import GitLabClient
 from app.models.database_manager import DatabaseManager
@@ -18,12 +18,14 @@ class OvertimeAnalyzer:
         local_tz: pytz.timezone,
         author_email: str,
         year: int,
+        selected_repos: Optional[List[str]] = None,
         work_start_hour: int = 9,
         work_end_hour: int = 18,
     ):
         self.local_tz = local_tz
         self.author_emails = [email.strip() for email in author_email.split(",")]
         self.year = year
+        self.selected_repos = selected_repos
 
         # 初始化各个功能模块
         self.gitlab_client = GitLabClient(access_token, base_url)
@@ -37,10 +39,15 @@ class OvertimeAnalyzer:
     def _get_repositories_info(self) -> List[Dict[str, Any]]:
         """获取用户可访问的仓库信息"""
         logger.info("获取可访问仓库...")
-        repositories = []
-        user_projects = self.gitlab_client.fetch_user_projects()
+        all_projects = self.gitlab_client.fetch_user_projects()
 
-        for project in user_projects:
+        repositories = []
+        for project in all_projects:
+            # 如果指定了选择的仓库，只处理选中的
+            if self.selected_repos:
+                if project["path_with_namespace"] not in self.selected_repos:
+                    continue
+
             repositories.append(
                 {
                     "id": project["id"],
@@ -48,9 +55,8 @@ class OvertimeAnalyzer:
                     "path_with_namespace": project["path_with_namespace"],
                 }
             )
-            logger.info(f"获取项目信息: {project['name']}")
 
-        logger.info(f"共获取到 {len(repositories)} 个可访问的仓库")
+        logger.info(f"获取{len(repositories)}个仓库")
         return repositories
 
     def analyze_overtime(self):
@@ -96,7 +102,6 @@ class OvertimeAnalyzer:
                     # 检查重复记录
                     last_commit_hash = commits_on_date[-1].get("id", "")
                     if self.db_manager.check_duplicate_record(last_commit_hash):
-                        logger.warning(f"跳过重复记录: {last_commit_hash}")
                         continue
 
                     # 创建加班记录
@@ -108,13 +113,13 @@ class OvertimeAnalyzer:
                         commits_on_date,
                         hours_worked,
                         self.author_emails[0],
-                        commit_hash_field="id"  # GitLab使用id字段
+                        commit_hash_field="id",  # GitLab使用id字段
                     )
 
                     # 保存到数据库
                     self.db_manager.insert_overtime_record(overtime_record)
 
-        logger.info("加班分析完成。")
+        logger.info("分析完成")
 
     def create_overtime_chart(self, output_path: str = "overtime_chart.png") -> str:
         """生成加班情况图表"""
@@ -125,8 +130,6 @@ class OvertimeAnalyzer:
         return self.report_generator.export_to_excel(output_path)
 
     def close(self):
-        """关闭所有资源连接"""
-        logger.info("关闭资源连接...")
         if hasattr(self, "gitlab_client"):
             self.gitlab_client.close()
         if hasattr(self, "db_manager"):
