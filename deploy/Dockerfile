@@ -1,25 +1,33 @@
-FROM python:3.10.13-slim as builder
+FROM python:3.13-slim as builder
 
-# 可选：使用中国镜像源
-ARG USE_CHINA_MIRROR=false
-ENV PIP_ROOT_USER_ACTION=ignore
+# 安装uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
-WORKDIR /chat-bi
-COPY requirements.txt .
+# 设置工作目录
+WORKDIR /commit-meter
 
-# 配置 pip 使用中国镜像源（如果需要），并安装依赖项
-RUN if [ "$USE_CHINA_MIRROR" = "true" ]; then \
-        pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple; \
-    fi && \
-    pip install --upgrade pip && \
-    pip install torch==1.11.0+cpu -f https://download.pytorch.org/whl/torch_stable.html && \
-    pip install --no-cache-dir -r requirements.txt
+# 复制项目配置文件
+COPY pyproject.toml uv.lock ./
 
-FROM python:3.10.13-slim
-COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
-COPY . /chat-bi
-WORKDIR /chat-bi
+# 安装依赖
+RUN uv sync --frozen --no-cache
+
+# 生产阶段
+FROM python:3.13-slim
+
+# 安装uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+# 复制虚拟环境
+COPY --from=builder /commit-meter/.venv /commit-meter/.venv
+
+# 复制项目代码
+COPY . /commit-meter
+WORKDIR /commit-meter
+
+# 确保使用虚拟环境
+ENV PATH="/commit-meter/.venv/bin:$PATH"
 
 EXPOSE 13000
 
-CMD ["python", "/app/main.py"]
+CMD ["python", "main.py"]

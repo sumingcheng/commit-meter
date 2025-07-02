@@ -6,23 +6,24 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from urllib.parse import quote
 from typing import List, Dict, Any
-from app.config.main import Config
-from app.journal.logger_setup import logger
+from app.settings.config import Config
+from app.utils.logger import logger
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 
 class OvertimeAnalyzer:
     def __init__(self, access_token: str, base_url: str, local_tz: pytz.timezone,
-                 repository_urls: List[str], author_email: str, year: int):
+                 author_email: str, year: int, work_start_hour: int = 9, work_end_hour: int = 18):
         self.access_token = access_token
         self.base_url = base_url
         self.database_path = Config.DATABASE_PATH
         self.local_tz = local_tz
-        self.repository_urls = repository_urls
         self.author_emails = [email.strip()
                               for email in author_email.split(',')]
         self.year = year
+        self.work_start_hour = work_start_hour
+        self.work_end_hour = work_end_hour
         self.conn = self.setup_database()
         self.session = self.create_session()
         self.repositories = self.get_repositories_info()
@@ -61,14 +62,64 @@ class OvertimeAnalyzer:
         return conn
 
     def get_repositories_info(self) -> List[Dict[str, Any]]:
-        logger.info("获取仓库信息...")
+        logger.info("获取用户可访问的仓库信息...")
         repositories = []
-        for url in self.repository_urls:
-            project_info = self.fetch_project_info(url)
-            if project_info:
-                repositories.append(project_info)
-                logger.info(f"获取项目信息: {project_info['name']}")
+        user_projects = self.fetch_user_projects()
+        for project in user_projects:
+            repositories.append({
+                'id': project['id'],
+                'name': project['name'],
+                'path_with_namespace': project['path_with_namespace']
+            })
+            logger.info(f"获取项目信息: {project['name']}")
+        logger.info(f"共获取到 {len(repositories)} 个可访问的仓库")
         return repositories
+
+    def fetch_user_projects(self) -> List[Dict[str, Any]]:
+        """动态获取用户有权限访问的所有项目"""
+        logger.info("动态获取用户项目列表...")
+        projects = []
+        page = 1
+        per_page = 100
+        
+        while True:
+            try:
+                # 获取用户有权限的项目，包括作为成员的项目
+                params = {
+                    'membership': 'true',  # 只获取用户有权限的项目
+                    'per_page': per_page,
+                    'page': page,
+                    'simple': 'true',  # 简化响应，提高性能
+                    'archived': 'false'  # 排除已归档的项目
+                }
+                
+                response = self.session.get(f"{self.base_url}/projects", params=params)
+                logger.debug(f"获取第 {page} 页项目，状态码: {response.status_code}")
+                
+                if response.status_code != 200:
+                    logger.warning(f"获取项目列表失败: {response.status_code}")
+                    break
+                    
+                page_projects = response.json()
+                if not page_projects:
+                    logger.info("没有更多项目，获取完成")
+                    break
+                    
+                projects.extend(page_projects)
+                logger.info(f"第 {page} 页获取到 {len(page_projects)} 个项目")
+                
+                # 如果返回的项目数小于每页数量，说明是最后一页
+                if len(page_projects) < per_page:
+                    break
+                    
+                page += 1
+                
+            except Exception as e:
+                logger.error(f"获取项目列表时出错: {e}")
+                break
+        
+        logger.info(f"总共获取到 {len(projects)} 个可访问的项目")
+        return projects
 
     def fetch_project_info(self, repo_url: str) -> Dict[str, Any]:
         try:
@@ -145,10 +196,10 @@ class OvertimeAnalyzer:
             self.year, 12, 31, 23, 59, 59, tzinfo=pytz.utc)
         cursor = self.conn.cursor()
 
-        # 定义工作时间常量
-        WORK_START_HOUR = 9  # 上班时间 9:00
-        WORK_END_HOUR = 18   # 下班时间 18:00
-        OVERTIME_END_HOUR = 23  # 修改为 23，表示 23:59:59
+        # 使用用户定义的工作时间
+        WORK_START_HOUR = self.work_start_hour  # 用户定义的上班时间
+        WORK_END_HOUR = self.work_end_hour      # 用户定义的下班时间
+        OVERTIME_END_HOUR = 23  # 加班统计截止时间 23:59:59
 
         for repo in self.repositories:
             project_id = repo['id']

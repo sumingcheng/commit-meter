@@ -1,0 +1,18 @@
+[project]
+name = "commit-meter"
+version = "0.1.0"
+description = "GitLab代码提交记录的加班统计分析工具"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "gradio>=5.4.0",
+  "requests>=2.32.0",
+  "pandas>=2.2.0",
+  "matplotlib>=3.9.0",
+  "openpyxl>=3.1.0",
+  "pytz>=2024.2",
+]
+
+[project.scripts]
+commit-meter = "main:main"
+
