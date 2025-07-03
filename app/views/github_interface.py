@@ -5,33 +5,30 @@ import datetime
 
 def create_github_interface():
     """创建GitHub分析界面"""
-    
+
     # GitHub配置输入区域
     with gr.Row():
         with gr.Column(scale=1):
             github_token = gr.Textbox(
-                label="🔑 GitHub Token", 
-                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx", 
+                label="🔑 GitHub Token",
+                placeholder="ghp_xxxxxxxxxxxxxxxxxxxx",
                 type="password",
-                elem_id="github_token"
+                elem_id="github_token",
             )
             github_author_email = gr.Textbox(
-                label="📧 作者邮箱", 
+                label="📧 作者邮箱",
                 placeholder="user@example.com, user2@example.com",
-                elem_id="github_email"
+                elem_id="github_email",
             )
         with gr.Column(scale=1):
             github_year = gr.Number(
-                label="📅 年份", 
+                label="📅 年份",
                 value=datetime.datetime.now().year,
                 precision=0,
-                elem_id="github_year"
+                elem_id="github_year",
             )
-            get_repos_btn = gr.Button(
-                "📋 获取仓库列表",
-                variant="secondary"
-            )
-    
+            get_repos_btn = gr.Button("📋 获取仓库列表", variant="secondary")
+
     # GitHub工作时间设置
     with gr.Row():
         with gr.Column(scale=1):
@@ -41,7 +38,7 @@ def create_github_interface():
                 precision=0,
                 minimum=0,
                 maximum=23,
-                elem_id="github_work_start"
+                elem_id="github_work_start",
             )
         with gr.Column(scale=1):
             github_work_end_hour = gr.Number(
@@ -50,44 +47,36 @@ def create_github_interface():
                 precision=0,
                 minimum=1,
                 maximum=23,
-                elem_id="github_work_end"
+                elem_id="github_work_end",
             )
         with gr.Column(scale=2):
-            gr.Markdown("""
+            gr.Markdown(
+                """
             **工作时间说明：**
             - 使用24小时制（如：9表示9:00，18表示18:00）
             - 超过下班时间的提交将被识别为加班
-            """, elem_classes="help-text")
+            """,
+                elem_classes="help-text",
+            )
 
     # 仓库选择区域
     with gr.Row():
         repo_selector = gr.CheckboxGroup(
-            label="📂 选择要分析的仓库",
-            choices=[],
-            value=[],
-            elem_id="github_repos"
+            label="📂 选择要分析的仓库", choices=[], value=[], elem_id="github_repos"
         )
 
     # GitHub操作按钮
     with gr.Row():
         with gr.Column(scale=1):
-            github_submit_btn = gr.Button(
-                "🚀 开始分析", 
-                variant="primary",
-                size="lg"
-            )
+            github_submit_btn = gr.Button("🚀 开始分析", variant="primary", size="lg")
         with gr.Column(scale=1):
-            github_clear_btn = gr.Button(
-                "🗑️ 清除配置", 
-                variant="secondary",
-                size="lg"
-            )
+            github_clear_btn = gr.Button("🗑️ 清除配置", variant="secondary", size="lg")
         with gr.Column(scale=2):
             github_status_output = gr.Textbox(
-                label="📋 分析状态", 
+                label="📋 分析状态",
                 interactive=False,
                 lines=1,
-                placeholder="等待分析..."
+                placeholder="等待分析...",
             )
 
     # GitHub结果展示区域
@@ -99,7 +88,8 @@ def create_github_interface():
 
     # GitHub使用说明
     with gr.Row():
-        gr.Markdown("""
+        gr.Markdown(
+            """
         ## 💡 GitHub 使用说明
         
         **工具介绍：**
@@ -117,32 +107,44 @@ def create_github_interface():
         - 工作日超过下班时间至23:00算加班
         - 周末从上班时间开始至23:00算加班
         - 可自定义工作时间范围
-        """, elem_classes="compact-text")
+        """,
+            elem_classes="compact-text",
+        )
 
     def fetch_github_repos(token):
         if not token or not token.strip():
-            return gr.CheckboxGroup.update(choices=[]), "❌ 请先输入GitHub Token"
-        
+            return gr.update(choices=[]), "❌ 请先输入GitHub Token"
+
         try:
             repos = get_github_repos(token.strip())
-            choices = [(f"{repo['full_name']} - {repo['description'][:50]}{'...' if len(repo['description']) > 50 else ''}", repo['full_name']) for repo in repos]
-            return gr.CheckboxGroup.update(choices=choices), f"✅ 成功获取到 {len(repos)} 个仓库"
+            choices = []
+            for repo in repos:
+                # 安全处理description为None的情况
+                description = repo.get("description") or "无描述"
+                if len(description) > 50:
+                    description = description[:50] + "..."
+                choices.append(
+                    (f"{repo['full_name']} - {description}", repo["full_name"])
+                )
+            return gr.update(choices=choices), f"✅ 成功获取到 {len(repos)} 个仓库"
         except Exception as e:
-            return gr.CheckboxGroup.update(choices=[]), f"❌ 获取仓库失败: {str(e)}"
+            return gr.update(choices=[]), f"❌ 获取仓库失败: {str(e)}"
 
-    def on_github_submit(token, author_email, year, selected_repos, work_start_hour, work_end_hour):
+    def on_github_submit(
+        token, author_email, year, selected_repos, work_start_hour, work_end_hour
+    ):
         if not token or not token.strip():
             return None, None, "❌ 错误: 请输入GitHub Token"
-            
+
         if not author_email or not author_email.strip():
             return None, None, "❌ 错误: 请输入作者邮箱"
-        
+
         if not selected_repos:
             return None, None, "❌ 错误: 请选择要分析的仓库"
-        
+
         if work_start_hour >= work_end_hour:
             return None, None, "❌ 错误: 上班时间必须早于下班时间"
-        
+
         try:
             chart_path, excel_path = analyze_github_overtime(
                 token.strip(),
@@ -150,31 +152,62 @@ def create_github_interface():
                 int(year),
                 selected_repos,
                 int(work_start_hour),
-                int(work_end_hour)
+                int(work_end_hour),
             )
-            
-            return chart_path, excel_path, f"🎉 GitHub分析完成！已分析 {len(selected_repos)} 个仓库。"
-            
+
+            return (
+                chart_path,
+                excel_path,
+                f"🎉 GitHub分析完成！已分析 {len(selected_repos)} 个仓库。",
+            )
+
         except Exception as e:
             return None, None, f"❌ GitHub分析过程出错: {str(e)}"
 
     def clear_github_form():
-        return "", "", datetime.datetime.now().year, [], 9, 18, None, None, "🔄 配置已清除"
+        return (
+            "",
+            "",
+            datetime.datetime.now().year,
+            [],
+            9,
+            18,
+            None,
+            None,
+            "🔄 配置已清除",
+        )
 
     # GitHub事件绑定
     get_repos_btn.click(
         fn=fetch_github_repos,
         inputs=[github_token],
-        outputs=[repo_selector, github_status_output]
+        outputs=[repo_selector, github_status_output],
     )
-    
+
     github_submit_btn.click(
         fn=on_github_submit,
-        inputs=[github_token, github_author_email, github_year, repo_selector, github_work_start_hour, github_work_end_hour],
-        outputs=[github_chart_output, github_excel_output, github_status_output]
+        inputs=[
+            github_token,
+            github_author_email,
+            github_year,
+            repo_selector,
+            github_work_start_hour,
+            github_work_end_hour,
+        ],
+        outputs=[github_chart_output, github_excel_output, github_status_output],
     )
-    
+
     github_clear_btn.click(
         fn=clear_github_form,
-        outputs=[github_token, github_author_email, github_year, repo_selector, github_work_start_hour, github_work_end_hour, github_chart_output, github_excel_output, github_status_output]
-    ) 
+        outputs=[
+            github_token,
+            github_author_email,
+            github_year,
+            repo_selector,
+            github_work_start_hour,
+            github_work_end_hour,
+            github_chart_output,
+            github_excel_output,
+            github_status_output,
+        ],
+    )
